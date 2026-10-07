@@ -180,6 +180,78 @@ namespace Magister2
                     })
             );
 
+            // ---------- assignments ----------
+
+            app.MapGet(
+                "/api/opdrachten",
+                () =>
+                    Guard(async () =>
+                    {
+                        var opdrachten = await mg.GetOpdrachtenAsync();
+
+                        return Results.Ok(
+                            opdrachten.Select(o => new
+                            {
+                                o.Id,
+                                o.Titel,
+                                o.Vak,
+                                o.InleverenVoor,
+                                o.IngeleverdOp,
+                                o.StatusLaatsteOpdrachtVersie,
+                                o.LaatsteOpdrachtVersienummer,
+                                o.Bijlagen,
+                                o.Docenten,
+                                o.VersieNavigatieItems,
+                                o.Beoordeling,
+                                o.BeoordeeldOp,
+                                o.OpnieuwInleveren,
+                                o.Afgesloten,
+                                o.MagInleveren,
+                                o.SelfHref
+                            })
+                        );
+                    })
+            );
+
+            app.MapGet(
+                "/api/opdrachten/{id:int}",
+                (int id) =>
+                    Guard(async () =>
+                    {
+                        Opdracht? o = await mg.GetOpdrachtAsync(id);
+
+                        if (o == null)
+                        {
+                            return Results.NotFound(
+                                new { error = "Assignment not found." }
+                            );
+                        }
+
+                        return Results.Ok(
+                            new
+                            {
+                                o.Id,
+                                o.Titel,
+                                o.Vak,
+                                o.InleverenVoor,
+                                o.IngeleverdOp,
+                                o.StatusLaatsteOpdrachtVersie,
+                                o.LaatsteOpdrachtVersienummer,
+                                o.Bijlagen,
+                                o.Docenten,
+                                o.VersieNavigatieItems,
+                                o.Omschrijving,
+                                o.PlainOmschrijving,
+                                o.Beoordeling,
+                                o.BeoordeeldOp,
+                                o.OpnieuwInleveren,
+                                o.Afgesloten,
+                                o.MagInleveren,
+                                o.SelfHref
+                            }
+                        );
+                    })
+            );
             // ---------- messages ----------
             app.MapGet(
                 "/api/personen",

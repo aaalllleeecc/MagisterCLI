@@ -6,6 +6,8 @@ using System.Net.Http;
 using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
+using System.Net;
+using System.Text.RegularExpressions;
 
 namespace Magister2
 {
@@ -58,7 +60,42 @@ namespace Magister2
         public bool Afgesloten { get; set; }
         public bool MagInleveren { get; set; }
 
-        public string SelfHref => Links?.Find(l => l.Rel == "Self")?.Href ?? "";
+        public string SelfHref =>
+            Links?.Find(l => l.Rel == "Self")?.Href ?? "";
+
+        public string PlainOmschrijving
+        {
+            get
+            {
+                if (string.IsNullOrWhiteSpace(Omschrijving))
+                    return "";
+
+                var text = Omschrijving;
+
+                // Turn block-level HTML into newlines
+                text = Regex.Replace(text, @"</p\s*>", "\n\n",
+                    RegexOptions.IgnoreCase);
+                text = Regex.Replace(text, @"<br\s*/?>", "\n",
+                    RegexOptions.IgnoreCase);
+                text = Regex.Replace(text, @"</li\s*>", "\n",
+                    RegexOptions.IgnoreCase);
+
+                // Remove remaining HTML tags
+                text = Regex.Replace(text, "<[^>]+>", "");
+
+                // Decode &nbsp;, &amp;, etc.
+                text = WebUtility.HtmlDecode(text);
+
+                // Normalize whitespace
+                text = text.Replace("\r\n", "\n")
+                           .Replace("\r", "\n");
+
+                text = Regex.Replace(text, @"[ \t]+\n", "\n");
+                text = Regex.Replace(text, @"\n{3,}", "\n\n");
+
+                return text.Trim();
+            }
+        }
     }
 
     public class Lokaal
@@ -764,7 +801,25 @@ namespace Magister2
             }
             return null;
         }
-
+        public async Task<List<Opdracht>> GetOpdrachtenAsync()
+        {
+            string id = await LeerlingAsync();
+            return await GetListAsync<Opdracht>("/api/personen/" + id + "/opdrachten");
+        }
+        public async Task<Opdracht?> GetOpdrachtAsync(int opdrachtId)
+        {
+            string id = await LeerlingAsync();
+            try
+            {
+                string json = await GetRawAsync("/api/personen/" + id + "/opdrachten/" + opdrachtId);
+                return JsonSerializer.Deserialize<Opdracht>(json, Json);
+            }
+            catch (HttpRequestException)
+            {
+                var list = await GetOpdrachtenAsync();
+                return list.Find(a => a.Id == opdrachtId);
+            }
+        }
         /// <summary>
         /// Downloads the file of a study-guide resource. Tries its links (Contents/Download/Self), then Uri.
         /// If a link returns JSON metadata instead of the file, follows a link or uri inside that JSON once.

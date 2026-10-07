@@ -6,6 +6,8 @@ using System.Text;
 using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
+using System.Net;
+using System.Text.RegularExpressions;
 
 namespace Magister2
 {
@@ -121,7 +123,100 @@ namespace Magister2
                                 $"{a.Id, -9} {a.StartLocal:ddd dd-MM HH:mm}  {a.Omschrijving, -28} {a.Lokatie}"
                             );
                         break;
+                    case "opdrachten":
+                        {
+                            var opdrachten = await mg.GetOpdrachtenAsync();
 
+                            foreach (var o in opdrachten)
+                            {
+                                Console.WriteLine(
+                                    $"{o.Id,6}  {o.InleverenVoor:ddd dd-MM HH:mm}  " +
+                                    $"{o.Titel}"
+                                );
+
+                                Console.WriteLine(
+                                    $"        Vak: {o.Vak ?? "-"}"
+                                );
+
+                                Console.WriteLine(
+                                    $"        Status: " +
+                                    $"{(o.IngeleverdOp.HasValue ? "Ingeleverd" : "Niet ingeleverd")}" +
+                                    $"{(o.Afgesloten ? ", afgesloten" : "")}"
+                                );
+
+                                Console.WriteLine();
+                            }
+
+                            break;
+                        }
+                    case "opdracht":
+                        {
+                            if (n <= 0)
+                            {
+                                Console.Error.WriteLine("Usage: ... opdracht <id>");
+                                return 1;
+                            }
+
+                            var opdracht = await mg.GetOpdrachtAsync(n);
+
+                            if (opdracht == null)
+                            {
+                                Console.Error.WriteLine("Assignment not found.");
+                                return 1;
+                            }
+
+                            Console.WriteLine($"Assignment #{opdracht.Id}");
+                            Console.WriteLine(new string('=', 60));
+
+                            Console.WriteLine($"Titel       : {opdracht.Titel ?? "-"}");
+                            Console.WriteLine($"Vak         : {opdracht.Vak ?? "-"}");
+                            Console.WriteLine($"Inleveren   : {opdracht.InleverenVoor:dddd dd-MM-yyyy HH:mm}");
+
+                            Console.WriteLine(
+                                $"Ingeleverd  : " +
+                                (opdracht.IngeleverdOp.HasValue
+                                    ? opdracht.IngeleverdOp.Value.ToString("dddd dd-MM-yyyy HH:mm")
+                                    : "Nee")
+                            );
+
+                            Console.WriteLine($"Afgesloten  : {(opdracht.Afgesloten ? "Ja" : "Nee")}");
+                            Console.WriteLine($"Mag inleveren: {(opdracht.MagInleveren ? "Ja" : "Nee")}");
+                            Console.WriteLine($"Opnieuw     : {(opdracht.OpnieuwInleveren ? "Ja" : "Nee")}");
+
+                            if (opdracht.BeoordeeldOp.HasValue)
+                            {
+                                Console.WriteLine(
+                                    $"Beoordeeld  : {opdracht.BeoordeeldOp.Value:dddd dd-MM-yyyy HH:mm}"
+                                );
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(opdracht.Beoordeling))
+                            {
+                                Console.WriteLine();
+                                Console.WriteLine("Beoordeling");
+                                Console.WriteLine("-----------");
+                                Console.WriteLine(opdracht.Beoordeling);
+                            }
+
+                            if (!string.IsNullOrWhiteSpace(opdracht.PlainOmschrijving))
+                            {
+                                Console.WriteLine();
+                                Console.WriteLine("Omschrijving");
+                                Console.WriteLine("------------");
+                                Console.WriteLine(opdracht.PlainOmschrijving);
+                            }
+
+                            if (opdracht.Bijlagen?.Count > 0)
+                            {
+                                Console.WriteLine();
+                                Console.WriteLine($"Bijlagen: {opdracht.Bijlagen.Count}");
+                            }
+
+                            Console.WriteLine();
+                            Console.WriteLine($"API: {opdracht.SelfHref}");
+
+                            break;
+                        }
                     case "afspraak":
                     {
                         if (n <= 0)
