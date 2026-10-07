@@ -7,7 +7,7 @@ using System.Text.Json;
 using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 
-namespace MagisterLoginDemo
+namespace Magister2
 {
     // Example CLI on top of DataGetter.
     //
@@ -18,6 +18,7 @@ namespace MagisterLoginDemo
     //              berichten [count=20] inbox (first column is the id)
     //              bericht <id>         one message in full (body, recipients, attachments)
     //              bijlage <id> [nr]    download the attachments of a message (all, or one by its [number])
+    //              personen <naam>      search for people by name
     //              cijfers   [count=25] latest grades
     //              studiewijzers        study guides around today (first column is the id)
     //              studiewijzer <id> [onderdeel]   one study guide (or just one onderdeel, by its [number])
@@ -43,7 +44,11 @@ namespace MagisterLoginDemo
             }
 
             // "serve help" without school/username
-            if (args.Length >= 2 && args[0].Equals("serve", StringComparison.OrdinalIgnoreCase) && IsHelp(args[1]))
+            if (
+                args.Length >= 2
+                && args[0].Equals("serve", StringComparison.OrdinalIgnoreCase)
+                && IsHelp(args[1])
+            )
             {
                 Console.WriteLine(ServeHelpText);
                 return 0;
@@ -60,17 +65,24 @@ namespace MagisterLoginDemo
             string command = args.Length > 2 ? args[2].ToLowerInvariant() : "afspraken";
             string? arg3 = args.Length > 3 ? args[3] : null;
             int n = arg3 != null && int.TryParse(arg3, out int parsed) ? parsed : -1;
-            int n2 = args.Length > 4 && int.TryParse(args[4], out int p2) ? p2 : -1;   // onderdeel number
-            int n3 = args.Length > 5 && int.TryParse(args[5], out int p3) ? p3 : -1;   // bron number
+            int n2 = args.Length > 4 && int.TryParse(args[4], out int p2) ? p2 : -1; // onderdeel number
+            int n3 = args.Length > 5 && int.TryParse(args[5], out int p3) ? p3 : -1; // bron number
             bool verbose = Environment.GetEnvironmentVariable("MAGISTER_VERBOSE") == "1";
 
-            string host = Environment.GetEnvironmentVariable("MAGISTER_HOST") ?? "pantarijn.magister.net";
+            string host =
+                Environment.GetEnvironmentVariable("MAGISTER_HOST") ?? "pantarijn.magister.net";
 
             // The password is only asked for when no valid saved session exists
             // Remembered in memory only, so a long-running `serve` can log in again without prompting
             string? password = null;
-            var mg = new DataGetter(school, username,
-                () => password ??= Environment.GetEnvironmentVariable("MAGISTER_PASSWORD") ?? ReadPassword(), host);
+            var mg = new DataGetter(
+                school,
+                username,
+                () =>
+                    password ??=
+                        Environment.GetEnvironmentVariable("MAGISTER_PASSWORD") ?? ReadPassword(),
+                host
+            );
             if (Environment.GetEnvironmentVariable("MAGISTER_VERBOSE") == "1")
                 mg.Log = Console.Error.WriteLine;
 
@@ -90,30 +102,57 @@ namespace MagisterLoginDemo
                         break;
 
                     case "logout":
-                        Console.WriteLine(DataGetter.DeleteCache() ? "Saved session deleted." : "No saved session.");
+                        Console.WriteLine(
+                            DataGetter.DeleteCache()
+                                ? "Saved session deleted."
+                                : "No saved session."
+                        );
                         break;
 
                     case "afspraken":
                         int days = n > 0 ? n : 7;
-                        foreach (var a in await mg.GetAfsprakenAsync(DateTime.Today, DateTime.Today.AddDays(days - 1)))
-                            Console.WriteLine($"{a.Id,-9} {a.StartLocal:ddd dd-MM HH:mm}  {a.Omschrijving,-28} {a.Lokatie}");
+                        foreach (
+                            var a in await mg.GetAfsprakenAsync(
+                                DateTime.Today,
+                                DateTime.Today.AddDays(days - 1)
+                            )
+                        )
+                            Console.WriteLine(
+                                $"{a.Id, -9} {a.StartLocal:ddd dd-MM HH:mm}  {a.Omschrijving, -28} {a.Lokatie}"
+                            );
                         break;
 
                     case "afspraak":
                     {
-                        if (n <= 0) { Console.Error.WriteLine("Usage: ... afspraak <id>"); return 1; }
+                        if (n <= 0)
+                        {
+                            Console.Error.WriteLine("Usage: ... afspraak <id>");
+                            return 1;
+                        }
                         var a = await mg.GetAfspraakAsync(n);
-                        if (a == null) { Console.Error.WriteLine("Appointment not found."); return 1; }
+                        if (a == null)
+                        {
+                            Console.Error.WriteLine("Appointment not found.");
+                            return 1;
+                        }
 
                         Console.WriteLine($"Id:           {a.Id}");
                         Console.WriteLine($"Omschrijving: {a.Omschrijving}");
-                        Console.WriteLine($"Tijd:         {a.StartLocal:ddd dd-MM-yyyy HH:mm} - {a.EindeLocal:HH:mm}" +
-                                          (a.DuurtHeleDag ? " (hele dag)" : ""));
+                        Console.WriteLine(
+                            $"Tijd:         {a.StartLocal:ddd dd-MM-yyyy HH:mm} - {a.EindeLocal:HH:mm}"
+                                + (a.DuurtHeleDag ? " (hele dag)" : "")
+                        );
                         Console.WriteLine($"Lesuur:       {a.LesuurVan}-{a.LesuurTotMet}");
                         Console.WriteLine($"Lokatie:      {a.Lokatie}");
-                        Console.WriteLine($"Vakken:       {string.Join(", ", a.Vakken?.ConvertAll(v => v.Naam) ?? new List<string?>())}");
-                        Console.WriteLine($"Docenten:     {string.Join(", ", a.Docenten?.ConvertAll(d => d.Naam) ?? new List<string?>())}");
-                        Console.WriteLine($"Status/Type:  {a.Status}/{a.Type}   Bijlagen: {a.HeeftBijlagen}");
+                        Console.WriteLine(
+                            $"Vakken:       {string.Join(", ", a.Vakken?.ConvertAll(v => v.Naam) ?? new List<string?>())}"
+                        );
+                        Console.WriteLine(
+                            $"Docenten:     {string.Join(", ", a.Docenten?.ConvertAll(d => d.Naam) ?? new List<string?>())}"
+                        );
+                        Console.WriteLine(
+                            $"Status/Type:  {a.Status}/{a.Type}   Bijlagen: {a.HeeftBijlagen}"
+                        );
                         if (!string.IsNullOrWhiteSpace(a.Opmerking))
                             Console.WriteLine("\nOpmerking:\n" + StripHtml(a.Opmerking));
                         if (!string.IsNullOrWhiteSpace(a.Inhoud))
@@ -126,26 +165,44 @@ namespace MagisterLoginDemo
 
                     case "berichten":
                         foreach (var b in await mg.GetBerichtenAsync(n > 0 ? n : 20))
-                            Console.WriteLine($"{b.Id,-9} {b.VerzondenOp.ToLocalTime():dd-MM HH:mm}  {b.Afzender?.Naam,-24} {b.Onderwerp}");
+                            Console.WriteLine(
+                                $"{b.Id, -9} {b.VerzondenOp.ToLocalTime():dd-MM HH:mm}  {b.Afzender?.Naam, -24} {b.Onderwerp}"
+                            );
                         break;
-
+                    case "oprachten":{
+                        break;
+                    }
                     case "bericht":
                     {
-                        if (n <= 0) { Console.Error.WriteLine("Usage: ... bericht <id>"); return 1; }
+                        if (n <= 0)
+                        {
+                            Console.Error.WriteLine("Usage: ... bericht <id>");
+                            return 1;
+                        }
                         var bm = await mg.FindBerichtAsync(n);
-                        if (bm == null) { Console.Error.WriteLine("Message not found in the inbox."); return 1; }
+                        if (bm == null)
+                        {
+                            Console.Error.WriteLine("Message not found in the inbox.");
+                            return 1;
+                        }
 
-                        using JsonDocument doc = JsonDocument.Parse(await mg.GetBerichtJsonAsync(bm));
+                        using JsonDocument doc = JsonDocument.Parse(
+                            await mg.GetBerichtJsonAsync(bm)
+                        );
                         JsonElement root = doc.RootElement;
 
                         Console.WriteLine($"Id:        {bm.Id}");
                         Console.WriteLine($"Onderwerp: {bm.Onderwerp}");
                         Console.WriteLine($"Van:       {bm.Afzender?.Naam}");
-                        Console.WriteLine($"Verzonden: {bm.VerzondenOp.ToLocalTime():ddd dd-MM-yyyy HH:mm}");
+                        Console.WriteLine(
+                            $"Verzonden: {bm.VerzondenOp.ToLocalTime():ddd dd-MM-yyyy HH:mm}"
+                        );
                         string aan = NamesOf(Prop(root, "ontvangers"));
                         string cc = NamesOf(Prop(root, "kopieOntvangers"));
-                        if (aan != "") Console.WriteLine($"Aan:       {aan}");
-                        if (cc != "") Console.WriteLine($"Cc:        {cc}");
+                        if (aan != "")
+                            Console.WriteLine($"Aan:       {aan}");
+                        if (cc != "")
+                            Console.WriteLine($"Cc:        {cc}");
 
                         if (bm.HeeftBijlagen)
                         {
@@ -157,8 +214,11 @@ namespace MagisterLoginDemo
                                 foreach (JsonElement att in atts)
                                 {
                                     long size = Prop(att, "grootte")?.GetInt64() ?? 0;
-                                    Console.WriteLine($"  - [{ai++}] {Prop(att, "naam")?.GetString()} ({Prop(att, "contentType")?.GetString()}, {size / 1024} KB)");
-                                    if (verbose) Console.WriteLine("        raw: " + att.GetRawText());
+                                    Console.WriteLine(
+                                        $"  - [{ai++}] {Prop(att, "naam")?.GetString()} ({Prop(att, "contentType")?.GetString()}, {size / 1024} KB)"
+                                    );
+                                    if (verbose)
+                                        Console.WriteLine("        raw: " + att.GetRawText());
                                 }
                             }
                         }
@@ -167,20 +227,129 @@ namespace MagisterLoginDemo
                         if (!string.IsNullOrWhiteSpace(body))
                             Console.WriteLine("\n" + StripHtml(body));
                         else
-                            Console.WriteLine("\n(no 'inhoud' field found, raw JSON follows)\n" + root.GetRawText());
+                            Console.WriteLine(
+                                "\n(no 'inhoud' field found, raw JSON follows)\n"
+                                    + root.GetRawText()
+                            );
                         break;
                     }
+                    case "stuur":
+                    {
+                        Console.Write("Ontvanger ID: ");
+                        string? recipientInput = Console.ReadLine();
 
+                        if (!int.TryParse(recipientInput, out int recipientId))
+                        {
+                            Console.Error.WriteLine("Invalid recipient ID.");
+                            return 1;
+                        }
+
+                        Console.Write("Onderwerp: ");
+                        string subject = Console.ReadLine() ?? "";
+
+                        Console.Write("Inhoud: ");
+                        string content = Console.ReadLine() ?? "";
+
+                        if (string.IsNullOrWhiteSpace(subject))
+                        {
+                            Console.Error.WriteLine("Subject cannot be empty.");
+                            return 1;
+                        }
+
+                        if (string.IsNullOrWhiteSpace(content))
+                        {
+                            Console.Error.WriteLine("Content cannot be empty.");
+                            return 1;
+                        }
+
+                        var bericht = new BerichtOpstellen
+                        {
+                            Ontvangers =
+                            [
+                                new Ontvanger
+                                {
+                                    Id = recipientId,
+                                    Type = "persoon",
+                                    AanHuidigeSelectie = false,
+                                    PersoonType = "leerling",
+                                },
+                            ],
+                            KopieOntvangers = [],
+                            BlindeKopieOntvangers = [],
+                            HeeftPrioriteit = false,
+                            Inhoud = $"<p>{WebUtility.HtmlEncode(content)}</p>",
+                            Onderwerp = subject,
+                            VerzendOptie = "standaard",
+                            Bijlagen = [],
+                        };
+
+                        await mg.SendBericht(bericht);
+
+                        Console.WriteLine("Message sent.");
+                        break;
+                    }
+                    case "personen":
+                    {
+                        if (string.IsNullOrWhiteSpace(arg3))
+                        {
+                            Console.Error.WriteLine(
+                                "Usage: dotnet run -- <school> <username> personen <naam>"
+                            );
+                            return 1;
+                        }
+
+                        PersonenResponse personen = await mg.GetPersonenWithNameAsync(arg3);
+
+                        if (personen.Items.Count == 0)
+                        {
+                            Console.WriteLine("No people found.");
+                            break;
+                        }
+
+                        foreach (Persoon persoon in personen.Items)
+                        {
+                            string name = string.Join(
+                                " ",
+                                new[]
+                                {
+                                    persoon.Roepnaam,
+                                    persoon.Tussenvoegsel,
+                                    persoon.Achternaam,
+                                }.Where(x => !string.IsNullOrWhiteSpace(x))
+                            );
+
+                            Console.WriteLine(
+                                $"{persoon.Id, -8} {name, -30} {persoon.Klas ?? "", -10} {persoon.Type ?? ""}"
+                            );
+                        }
+
+                        break;
+                    }
+                    
                     case "bijlage":
                     {
-                        if (n <= 0) { Console.Error.WriteLine("Usage: ... bijlage <berichtId> [nr]"); return 1; }
+                        if (n <= 0)
+                        {
+                            Console.Error.WriteLine("Usage: ... bijlage <berichtId> [nr]");
+                            return 1;
+                        }
                         var bm = await mg.FindBerichtAsync(n);
-                        if (bm == null) { Console.Error.WriteLine("Message not found in the inbox."); return 1; }
+                        if (bm == null)
+                        {
+                            Console.Error.WriteLine("Message not found in the inbox.");
+                            return 1;
+                        }
 
                         var atts = await GetBijlagenAsync(mg, bm.Id);
-                        if (atts.Count == 0) { Console.Error.WriteLine("This message has no attachments."); return 1; }
+                        if (atts.Count == 0)
+                        {
+                            Console.Error.WriteLine("This message has no attachments.");
+                            return 1;
+                        }
 
-                        string dir = Environment.GetEnvironmentVariable("MAGISTER_DOWNLOAD_DIR") ?? "downloads";
+                        string dir =
+                            Environment.GetEnvironmentVariable("MAGISTER_DOWNLOAD_DIR")
+                            ?? "downloads";
                         Directory.CreateDirectory(dir);
 
                         int i = -1;
@@ -188,10 +357,14 @@ namespace MagisterLoginDemo
                         foreach (JsonElement item in atts)
                         {
                             i++;
-                            if (n2 >= 0 && i != n2) continue;
+                            if (n2 >= 0 && i != n2)
+                                continue;
                             any = true;
 
-                            string name = Prop(item, "naam")?.GetString() ?? Prop(item, "name")?.GetString() ?? ("bijlage-" + i);
+                            string name =
+                                Prop(item, "naam")?.GetString()
+                                ?? Prop(item, "name")?.GetString()
+                                ?? ("bijlage-" + i);
                             byte[]? data = null;
                             Exception? last = null;
                             foreach (string href in HrefsOf(item))
@@ -200,16 +373,29 @@ namespace MagisterLoginDemo
                                 {
                                     byte[] d = await mg.DownloadAsync(href);
                                     // JSON metadata instead of the file: try the next link
-                                    if (d.Length > 0 && d[0] == (byte)'{' && !name.EndsWith(".json", StringComparison.OrdinalIgnoreCase)) continue;
+                                    if (
+                                        d.Length > 0
+                                        && d[0] == (byte)'{'
+                                        && !name.EndsWith(
+                                            ".json",
+                                            StringComparison.OrdinalIgnoreCase
+                                        )
+                                    )
+                                        continue;
                                     data = d;
                                     break;
                                 }
-                                catch (HttpRequestException ex) { last = ex; }
+                                catch (HttpRequestException ex)
+                                {
+                                    last = ex;
+                                }
                             }
 
                             if (data == null)
                             {
-                                Console.Error.WriteLine($"Could not download {name}: {last?.Message ?? "no usable link"}");
+                                Console.Error.WriteLine(
+                                    $"Could not download {name}: {last?.Message ?? "no usable link"}"
+                                );
                                 Console.Error.WriteLine("  raw: " + item.GetRawText());
                                 continue;
                             }
@@ -217,34 +403,57 @@ namespace MagisterLoginDemo
                             await File.WriteAllBytesAsync(file, data);
                             Console.WriteLine($"Saved {file} ({data.Length / 1024} KB)");
                         }
-                        if (!any) { Console.Error.WriteLine("No attachment with that number."); return 1; }
+                        if (!any)
+                        {
+                            Console.Error.WriteLine("No attachment with that number.");
+                            return 1;
+                        }
                         break;
                     }
 
                     case "cijfers":
                         foreach (var c in await mg.GetCijfersAsync(n > 0 ? n : 25))
-                            Console.WriteLine($"{c.Vak?.Omschrijving,-28} {c.Omschrijving,-24} {c.Waarde}");
+                            Console.WriteLine(
+                                $"{c.Vak?.Omschrijving, -28} {c.Omschrijving, -24} {c.Waarde}"
+                            );
                         break;
 
                     case "studiewijzers":
                         foreach (var s in await mg.GetStudiewijzersAsync())
-                            Console.WriteLine($"{s.Id,-9} {s.Titel}  ({string.Join(",", s.VakCodes ?? new List<string>())})");
+                            Console.WriteLine(
+                                $"{s.Id, -9} {s.Titel}  ({string.Join(",", s.VakCodes ?? new List<string>())})"
+                            );
                         break;
 
                     case "studiewijzer":
                     {
-                        if (n <= 0) { Console.Error.WriteLine("Usage: ... studiewijzer <id> [onderdeel]"); return 1; }
+                        if (n <= 0)
+                        {
+                            Console.Error.WriteLine("Usage: ... studiewijzer <id> [onderdeel]");
+                            return 1;
+                        }
                         var sw = await mg.FindStudiewijzerAsync(n);
-                        if (sw == null) { Console.Error.WriteLine("Study guide not found (is it active around today?)."); return 1; }
+                        if (sw == null)
+                        {
+                            Console.Error.WriteLine(
+                                "Study guide not found (is it active around today?)."
+                            );
+                            return 1;
+                        }
 
                         var detail = await mg.GetStudiewijzerAsync(sw);
-                        Console.WriteLine($"{sw.Titel}  ({sw.Van:dd-MM-yyyy} - {sw.TotEnMet:dd-MM-yyyy})");
+                        Console.WriteLine(
+                            $"{sw.Titel}  ({sw.Van:dd-MM-yyyy} - {sw.TotEnMet:dd-MM-yyyy})"
+                        );
                         bool shown = false;
                         foreach (var o in detail?.Onderdelen?.Items ?? new List<Onderdeel>())
                         {
-                            if (n2 >= 0 && o.Volgnummer != n2) continue;
+                            if (n2 >= 0 && o.Volgnummer != n2)
+                                continue;
                             shown = true;
-                            Console.WriteLine($"\n[{o.Volgnummer}] {o.Titel}{(o.IsZichtbaar ? "" : "  (verborgen)")}");
+                            Console.WriteLine(
+                                $"\n[{o.Volgnummer}] {o.Titel}{(o.IsZichtbaar ? "" : "  (verborgen)")}"
+                            );
                             var od = await mg.GetOnderdeelAsync(o.SelfHref);
                             if (verbose)
                             {
@@ -257,46 +466,87 @@ namespace MagisterLoginDemo
                             int bi = 0;
                             foreach (var bron in od?.Bronnen ?? new List<Bron>())
                             {
-                                Console.WriteLine($"    - [{bi++}] {bron.Naam} ({bron.ContentType}, {bron.Grootte / 1024} KB)");
+                                Console.WriteLine(
+                                    $"    - [{bi++}] {bron.Naam} ({bron.ContentType}, {bron.Grootte / 1024} KB)"
+                                );
                                 if (verbose && bron.Links != null)
-                                    foreach (var l in bron.Links) Console.WriteLine($"        link {l.Rel}: {l.Href}");
+                                    foreach (var l in bron.Links)
+                                        Console.WriteLine($"        link {l.Rel}: {l.Href}");
                             }
                         }
-                        if (n2 >= 0 && !shown) { Console.Error.WriteLine("No onderdeel with that number."); return 1; }
+                        if (n2 >= 0 && !shown)
+                        {
+                            Console.Error.WriteLine("No onderdeel with that number.");
+                            return 1;
+                        }
                         break;
                     }
 
                     case "download":
                     {
-                        if (n <= 0 || n2 < 0) { Console.Error.WriteLine("Usage: ... download <studiewijzerId> <onderdeel> [bron]"); return 1; }
+                        if (n <= 0 || n2 < 0)
+                        {
+                            Console.Error.WriteLine(
+                                "Usage: ... download <studiewijzerId> <onderdeel> [bron]"
+                            );
+                            return 1;
+                        }
                         var sw = await mg.FindStudiewijzerAsync(n);
-                        if (sw == null) { Console.Error.WriteLine("Study guide not found (is it active around today?)."); return 1; }
+                        if (sw == null)
+                        {
+                            Console.Error.WriteLine(
+                                "Study guide not found (is it active around today?)."
+                            );
+                            return 1;
+                        }
 
                         var detail = await mg.GetStudiewijzerAsync(sw);
                         var onderdeel = detail?.Onderdelen?.Items?.Find(x => x.Volgnummer == n2);
-                        if (onderdeel == null) { Console.Error.WriteLine("No onderdeel with that number."); return 1; }
+                        if (onderdeel == null)
+                        {
+                            Console.Error.WriteLine("No onderdeel with that number.");
+                            return 1;
+                        }
 
                         var od = await mg.GetOnderdeelAsync(onderdeel.SelfHref);
                         var bronnen = od?.Bronnen ?? new List<Bron>();
                         var chosen = new List<Bron>();
-                        if (n3 >= 0) { if (n3 < bronnen.Count) chosen.Add(bronnen[n3]); }
-                        else chosen = bronnen;
-                        if (chosen.Count == 0) { Console.Error.WriteLine("No files to download."); return 1; }
+                        if (n3 >= 0)
+                        {
+                            if (n3 < bronnen.Count)
+                                chosen.Add(bronnen[n3]);
+                        }
+                        else
+                            chosen = bronnen;
+                        if (chosen.Count == 0)
+                        {
+                            Console.Error.WriteLine("No files to download.");
+                            return 1;
+                        }
 
-                        string dir = Environment.GetEnvironmentVariable("MAGISTER_DOWNLOAD_DIR") ?? "downloads";
+                        string dir =
+                            Environment.GetEnvironmentVariable("MAGISTER_DOWNLOAD_DIR")
+                            ?? "downloads";
                         Directory.CreateDirectory(dir);
                         foreach (var bron in chosen)
                         {
                             byte[]? data;
-                            try { data = await mg.DownloadBronAsync(bron); }
+                            try
+                            {
+                                data = await mg.DownloadBronAsync(bron);
+                            }
                             catch (Exception ex)
                             {
-                                Console.Error.WriteLine($"Could not download {bron.Naam}: {ex.Message}");
+                                Console.Error.WriteLine(
+                                    $"Could not download {bron.Naam}: {ex.Message}"
+                                );
                                 continue;
                             }
                             if (data == null)
                             {
-                                Console.Error.WriteLine($"Could not download {bron.Naam}: the resource has no link.");
+                                Console.Error.WriteLine(
+                                    $"Could not download {bron.Naam}: the resource has no link."
+                                );
                                 continue;
                             }
                             string file = Path.Combine(dir, SafeFileName(bron.Naam));
@@ -307,12 +557,20 @@ namespace MagisterLoginDemo
                     }
 
                     case "raw":
-                        if (arg3 == null) { Console.Error.WriteLine("Usage: ... raw </api/path>"); return 1; }
+                        if (arg3 == null)
+                        {
+                            Console.Error.WriteLine("Usage: ... raw </api/path>");
+                            return 1;
+                        }
                         Console.WriteLine(await mg.GetRawAsync(arg3));
                         break;
 
                     default:
-                        Console.Error.WriteLine("Unknown command: " + command + "  (run with 'help' to list the commands)");
+                        Console.Error.WriteLine(
+                            "Unknown command: "
+                                + command
+                                + "  (run with 'help' to list the commands)"
+                        );
                         return 1;
                 }
                 return 0;
@@ -327,21 +585,25 @@ namespace MagisterLoginDemo
         // Case-insensitive property lookup; null if absent or not an object
         private static JsonElement? Prop(JsonElement? e, string name)
         {
-            if (e is not { ValueKind: JsonValueKind.Object }) return null;
+            if (e is not { ValueKind: JsonValueKind.Object })
+                return null;
             foreach (JsonProperty p in e.Value.EnumerateObject())
-                if (string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase)) return p.Value;
+                if (string.Equals(p.Name, name, StringComparison.OrdinalIgnoreCase))
+                    return p.Value;
             return null;
         }
 
         // Joins the "naam" of every entry in a recipient array
         private static string NamesOf(JsonElement? arr)
         {
-            if (arr is not { ValueKind: JsonValueKind.Array }) return "";
+            if (arr is not { ValueKind: JsonValueKind.Array })
+                return "";
             var names = new List<string>();
             foreach (JsonElement r in arr.Value.EnumerateArray())
             {
                 string? nm = Prop(r, "weergavenaam")?.GetString() ?? Prop(r, "naam")?.GetString();
-                if (!string.IsNullOrEmpty(nm)) names.Add(nm);
+                if (!string.IsNullOrEmpty(nm))
+                    names.Add(nm);
             }
             return string.Join(", ", names);
         }
@@ -350,12 +612,15 @@ namespace MagisterLoginDemo
         // -> {"items":[{"id":..,"naam":..,"contentType":..,"grootte":..,"links":{"self":{..},"download":{"href":..}}}]}
         private static async Task<List<JsonElement>> GetBijlagenAsync(DataGetter mg, int berichtId)
         {
-            string json = await mg.GetRawAsync("/api/berichten/berichten/" + berichtId + "/bijlagen");
+            string json = await mg.GetRawAsync(
+                "/api/berichten/berichten/" + berichtId + "/bijlagen"
+            );
             using JsonDocument doc = JsonDocument.Parse(json);
             var list = new List<JsonElement>();
             JsonElement? items = Prop(doc.RootElement, "items");
             if (items is { ValueKind: JsonValueKind.Array })
-                foreach (JsonElement i in items.Value.EnumerateArray()) list.Add(i.Clone());
+                foreach (JsonElement i in items.Value.EnumerateArray())
+                    list.Add(i.Clone());
             return list;
         }
 
@@ -369,20 +634,28 @@ namespace MagisterLoginDemo
             {
                 if (x.ValueKind == JsonValueKind.Array)
                 {
-                    foreach (JsonElement i in x.EnumerateArray()) Walk(i, parentName);
+                    foreach (JsonElement i in x.EnumerateArray())
+                        Walk(i, parentName);
                 }
                 else if (x.ValueKind == JsonValueKind.Object)
                 {
                     string? rel = Prop(x, "rel")?.GetString() ?? parentName;
                     foreach (JsonProperty p in x.EnumerateObject())
                     {
-                        if (string.Equals(p.Name, "href", StringComparison.OrdinalIgnoreCase) && p.Value.ValueKind == JsonValueKind.String)
+                        if (
+                            string.Equals(p.Name, "href", StringComparison.OrdinalIgnoreCase)
+                            && p.Value.ValueKind == JsonValueKind.String
+                        )
                         {
                             string r = (rel ?? "").ToLowerInvariant();
-                            int rank = r is "contents" or "content" or "download" ? 0 : r == "self" ? 1 : 2;
+                            int rank =
+                                r is "contents" or "content" or "download" ? 0
+                                : r == "self" ? 1
+                                : 2;
                             found.Add((rank, p.Value.GetString()!));
                         }
-                        else Walk(p.Value, p.Name);
+                        else
+                            Walk(p.Value, p.Name);
                     }
                 }
             }
@@ -390,21 +663,28 @@ namespace MagisterLoginDemo
             Walk(root, null);
             found.Sort((a, b) => a.rank.CompareTo(b.rank));
             var result = new List<string>();
-            foreach (var f in found) if (!result.Contains(f.href)) result.Add(f.href);
+            foreach (var f in found)
+                if (!result.Contains(f.href))
+                    result.Add(f.href);
             return result;
         }
 
         private static string SafeFileName(string? name)
         {
             string f = Path.GetFileName(name ?? "download");
-            foreach (char c in Path.GetInvalidFileNameChars()) f = f.Replace(c, '_');
+            foreach (char c in Path.GetInvalidFileNameChars())
+                f = f.Replace(c, '_');
             return string.IsNullOrWhiteSpace(f) ? "download" : f;
         }
 
         private static bool IsHelp(string a) =>
-            a.Equals("help", StringComparison.OrdinalIgnoreCase) || a == "-h" || a == "--help" || a == "/?";
+            a.Equals("help", StringComparison.OrdinalIgnoreCase)
+            || a == "-h"
+            || a == "--help"
+            || a == "/?";
 
-        private const string HelpText = @"Magister CLI
+        private const string HelpText =
+            @"Magister CLI
 
 Usage:
   dotnet run -- <school> <username> [command] [arguments]
@@ -417,10 +697,13 @@ Commands (default: afspraken):
   afspraken [days=7]                 appointments from today. First column is the id.
   afspraak <id>                      one appointment in full (time, teachers, homework, remarks, links)
 
+  opdrachten                         gets the assignments due for the logged-in user
+  opdracht <id>                      gets the info of a single assignment
+
   berichten [count=20]               inbox. First column is the id.
   bericht <id>                       one message in full (sender, recipients, body, attachments)
   bijlage <id> [nr]                  download the attachments of a message: all, or only attachment [nr]
-
+  personen <naam>                    search for people by name
   cijfers [count=25]                 latest grades
 
   studiewijzers                      study guides active around today. First column is the id.
@@ -451,7 +734,8 @@ Environment variables:
   MAGISTER_SCOPE         override the OIDC scope used for the school token
   serve only:  MAGISTER_API_KEY, MAGISTER_BIND, MAGISTER_ALLOW_ORIGIN";
 
-        private const string ServeHelpText = @"Magister serve: local HTTP/JSON API for frontends
+        private const string ServeHelpText =
+            @"Magister serve: local HTTP/JSON API for frontends
 
 Usage:
   dotnet run -- <school> <username> serve [port=5075]
@@ -473,7 +757,7 @@ Endpoints (all GET unless noted):
 
   /api/berichten?top=40&skip=0             inbox
   /api/berichten/{id}                      one message: { message: <full JSON incl. body>, bijlagen: <attachment list> }
-
+  GET /api/personen?q=<naam>       search for people by name
   /api/cijfers?top=25&skip=0               latest grades
 
   /api/studiewijzers?datum=2026-10-01      study guides around a date (default today)
@@ -483,7 +767,7 @@ Endpoints (all GET unless noted):
   /api/download?path=/api/...&name=x.pdf&type=application/pdf
                                            file bytes (name and type are optional)
   POST /api/logout                         delete the saved session file
-
+  POST /api/berichten                      send a message
 Downloading a file: take its path from the JSON and pass it to /api/download.
   study guide file     bronnen[].downloadPath               from /api/studiewijzers/{id}
   message attachment   bijlagen.items[].links.download.href  from /api/berichten/{id}
@@ -511,7 +795,12 @@ Security:
 
         private static string StripHtml(string html)
         {
-            string s = Regex.Replace(html, @"<(br|/p|/li|/div)\s*/?>", "\n", RegexOptions.IgnoreCase);
+            string s = Regex.Replace(
+                html,
+                @"<(br|/p|/li|/div)\s*/?>",
+                "\n",
+                RegexOptions.IgnoreCase
+            );
             s = Regex.Replace(s, "<[^>]+>", "");
             return WebUtility.HtmlDecode(s).Trim();
         }
@@ -523,9 +812,15 @@ Security:
             while (true)
             {
                 ConsoleKeyInfo k = Console.ReadKey(intercept: true);
-                if (k.Key == ConsoleKey.Enter) break;
-                if (k.Key == ConsoleKey.Backspace) { if (sb.Length > 0) sb.Length--; }
-                else if (!char.IsControl(k.KeyChar)) sb.Append(k.KeyChar);
+                if (k.Key == ConsoleKey.Enter)
+                    break;
+                if (k.Key == ConsoleKey.Backspace)
+                {
+                    if (sb.Length > 0)
+                        sb.Length--;
+                }
+                else if (!char.IsControl(k.KeyChar))
+                    sb.Append(k.KeyChar);
             }
             Console.Error.WriteLine();
             return sb.ToString();

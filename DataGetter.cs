@@ -3,10 +3,11 @@ using System.Collections.Generic;
 using System.IO;
 using System.Net;
 using System.Net.Http;
+using System.Text;
 using System.Text.Json;
 using System.Threading.Tasks;
 
-namespace MagisterLoginDemo
+namespace Magister2
 {
     // =====================================================================
     // MODELS (property names are matched case-insensitively against the API JSON)
@@ -29,6 +30,35 @@ namespace MagisterLoginDemo
         public int Id { get; set; }
         public string? Naam { get; set; }
         public string? Docentcode { get; set; }
+    }
+
+    public class Opdracht
+    {
+        public int Id { get; set; }
+        public List<Link>? Links { get; set; }
+
+        public string? Titel { get; set; }
+        public string? Vak { get; set; }
+
+        public DateTime InleverenVoor { get; set; }
+        public DateTime? IngeleverdOp { get; set; }
+
+        public int StatusLaatsteOpdrachtVersie { get; set; }
+        public int LaatsteOpdrachtVersienummer { get; set; }
+
+        public List<object>? Bijlagen { get; set; }
+        public List<object>? Docenten { get; set; }
+        public List<object>? VersieNavigatieItems { get; set; }
+
+        public string? Omschrijving { get; set; }
+        public string? Beoordeling { get; set; }
+        public DateTime? BeoordeeldOp { get; set; }
+
+        public bool OpnieuwInleveren { get; set; }
+        public bool Afgesloten { get; set; }
+        public bool MagInleveren { get; set; }
+
+        public string SelfHref => Links?.Find(l => l.Rel == "Self")?.Href ?? "";
     }
 
     public class Lokaal
@@ -80,11 +110,6 @@ namespace MagisterLoginDemo
         public BerichtLinks? Links { get; set; }
 
         public string SelfHref => Links?.Self?.Href ?? "";
-    }
-
-    public class VakInfo
-    {
-        public string? Omschrijving { get; set; }
     }
 
     public class Cijfer
@@ -150,6 +175,106 @@ namespace MagisterLoginDemo
         public string? Titel { get; set; }
         public string? Omschrijving { get; set; }
         public List<Bron>? Bronnen { get; set; }
+    }
+
+    public class PersonenResponse
+    {
+        public List<Persoon> Items { get; set; } = [];
+    }
+
+    public class Persoon
+    {
+        public int Id { get; set; }
+
+        public string? Voorletters { get; set; }
+        public string? Roepnaam { get; set; }
+        public string? Tussenvoegsel { get; set; }
+        public string? Achternaam { get; set; }
+
+        // Medewerker
+        public string? Code { get; set; }
+
+        // Leerling
+        public string? Klas { get; set; }
+
+        public string? Type { get; set; }
+
+        public PersoonLinks? Links { get; set; }
+    }
+
+    public class PersoonLinks
+    {
+        public PersoonLink? Self { get; set; }
+    }
+
+    public class Leermiddel
+    {
+        public int Id { get; set; }
+        public int MateriaalType { get; set; }
+        public List<LinkItem> Links { get; set; } = new();
+        public string Titel { get; set; } = string.Empty;
+        public string? Uitgeverij { get; set; }
+        public int Status { get; set; }
+        public DateTime Start { get; set; }
+        public DateTime Eind { get; set; }
+        public string EAN { get; set; } = string.Empty;
+        public string? PreviewImageUrl { get; set; }
+        public VakInfo Vak { get; set; } = new();
+
+        // Directly logs to the Console standard output
+        public void LogToConsole()
+        {
+            Console.WriteLine($"EAN: {EAN}, Title: {Titel}, Status: {Status}");
+        }
+    }
+
+    public class LinkItem
+    {
+        public string Rel { get; set; } = string.Empty;
+        public string Href { get; set; } = string.Empty;
+    }
+
+    public class VakInfo
+    {
+        public int Id { get; set; }
+        public string? Afkorting { get; set; }
+        public string? Omschrijving { get; set; } = string.Empty;
+        public int Volgnr { get; set; }
+        public List<LinkItem>? Links { get; set; }
+        public string LicentieUrl { get; set; } = string.Empty;
+    }
+
+    public class Ontvanger
+    {
+        public int Id { get; set; }
+        public string? Type { get; set; }
+        public bool AanHuidigeSelectie { get; set; }
+        public string? PersoonType { get; set; }
+    }
+
+    public class Bijlage
+    {
+        // Currently empty because the example contains no properties.
+        // Add fields here if the API returns them.
+    }
+
+    public class BerichtOpstellen
+    {
+        public List<Ontvanger>? Ontvangers { get; set; }
+        public List<Ontvanger>? KopieOntvangers { get; set; }
+        public List<Ontvanger>? BlindeKopieOntvangers { get; set; }
+
+        public bool HeeftPrioriteit { get; set; }
+        public string? Inhoud { get; set; }
+        public string? Onderwerp { get; set; }
+        public string? VerzendOptie { get; set; }
+
+        public List<Bijlage>? Bijlagen { get; set; }
+    }
+
+    public class PersoonLink
+    {
+        public string? Href { get; set; }
     }
 
     // What is written to disk between runs. Deliberately no password and no cookies.
@@ -482,6 +607,51 @@ namespace MagisterLoginDemo
             return LeerlingId!;
         }
 
+        public async Task<PersonenResponse> GetPersonenWithNameAsync(string query)
+        {
+            string path =
+                $"/api/contacten/personen?q={Uri.EscapeDataString(query)}&top=250&type=alle";
+
+            string raw = await GetRawAsync(path);
+
+            PersonenResponse? parsed = JsonSerializer.Deserialize<PersonenResponse>(
+                raw,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            );
+
+            return parsed ?? new PersonenResponse();
+        }
+
+        public async Task<List<Leermiddel>> GetLeermiddelenAsync()
+        {
+            string id = await LeerlingAsync();
+
+            string path = "/api/personen/" + id + "/lesmateriaal";
+            var list = await GetListAsync<Leermiddel>(path);
+            return list;
+        }
+
+        public async Task<string> GetRealLeermiddelLink(string Ean)
+        {
+            string id = await LeerlingAsync();
+
+            string path = "/api/personen/" + id + "/digitaallesmateriaal/Ean/" + Ean;
+            return "https://" + Host + ToPath(path);
+            string returned = await GetRawAsync(path);
+            Console.WriteLine(returned);
+            Console.WriteLine(path);
+
+            using (JsonDocument doc = JsonDocument.Parse(returned))
+            {
+                if (doc.RootElement.TryGetProperty("location", out JsonElement locationElement))
+                {
+                    string location = locationElement.GetString() ?? "";
+                    return location;
+                }
+            }
+            return "";
+        }
+
         // -----------------------------------------------------------------
         // Typed data
         // -----------------------------------------------------------------
@@ -551,6 +721,20 @@ namespace MagisterLoginDemo
                 var list = await GetAfsprakenAsync(d.AddDays(-30), d.AddDays(60));
                 return list.Find(a => a.Id == afspraakId);
             }
+        }
+
+        public async Task SendBericht(BerichtOpstellen bericht)
+        {
+            await WithRetryAsync(async login =>
+            {
+                await login.SendPostRequest<BerichtOpstellen, JsonElement>(
+                    Host,
+                    "/api/berichten/berichten",
+                    bericht
+                );
+
+                return true;
+            });
         }
 
         /// <summary>One study guide by id, from the list of guides around a date.</summary>

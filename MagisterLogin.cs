@@ -8,7 +8,7 @@ using System.Text.RegularExpressions;
 using System.Threading.Tasks;
 using System.Web;
 
-namespace MagisterLoginDemo
+namespace Magister2
 {
     internal sealed class MagisterLogin
     {
@@ -649,6 +649,97 @@ namespace MagisterLoginDemo
                 return (res, url);
             }
             throw new InvalidOperationException("Too many redirects.");
+        }
+
+        public async Task SendPostRequest<TRequest>(
+            string schoolHost,
+            string pathAndQuery,
+            TRequest body
+        )
+        {
+            Uri url = new Uri("https://" + schoolHost + pathAndQuery);
+
+            using var req = new HttpRequestMessage(HttpMethod.Post, url);
+
+            req.Headers.Accept.ParseAdd("application/json, text/plain, */*");
+            req.Headers.Referrer = new Uri("https://" + schoolHost + "/magister/");
+
+            if (_schoolToken != null)
+            {
+                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer",
+                    _schoolToken
+                );
+            }
+
+            req.Content = new StringContent(
+                JsonSerializer.Serialize(body),
+                Encoding.UTF8,
+                "application/json"
+            );
+
+            using HttpResponseMessage res = await _http.SendAsync(req);
+
+            if (!res.IsSuccessStatusCode)
+            {
+                string responseBody = await res.Content.ReadAsStringAsync();
+
+                throw new HttpRequestException(
+                    $"POST {pathAndQuery} returned {(int)res.StatusCode}: {responseBody}"
+                );
+            }
+        }
+
+        public async Task<TResponse?> SendPostRequest<TRequest, TResponse>(
+            string schoolHost,
+            string pathAndQuery,
+            TRequest body
+        )
+        {
+            Uri url = new Uri("https://" + schoolHost + pathAndQuery);
+
+            var req = new HttpRequestMessage(HttpMethod.Post, url);
+
+            req.Headers.Accept.ParseAdd("application/json, text/plain, */*");
+            req.Headers.Referrer = new Uri("https://" + schoolHost + "/magister/");
+
+            if (_schoolToken != null)
+            {
+                req.Headers.Authorization = new System.Net.Http.Headers.AuthenticationHeaderValue(
+                    "Bearer",
+                    _schoolToken
+                );
+            }
+
+            req.Content = new StringContent(
+                JsonSerializer.Serialize(
+                    body,
+                    new JsonSerializerOptions { PropertyNamingPolicy = JsonNamingPolicy.CamelCase }
+                ),
+                System.Text.Encoding.UTF8,
+                "application/json"
+            );
+
+            using HttpResponseMessage res = await _http.SendAsync(req);
+
+            string responseBody = await res.Content.ReadAsStringAsync();
+
+            if (!res.IsSuccessStatusCode)
+            {
+                throw new HttpRequestException(
+                    $"POST {pathAndQuery.Split('?')[0]} returned {(int)res.StatusCode}: {responseBody}",
+                    null,
+                    res.StatusCode
+                );
+            }
+
+            if (string.IsNullOrWhiteSpace(responseBody))
+                return default;
+
+            return JsonSerializer.Deserialize<TResponse>(
+                responseBody,
+                new JsonSerializerOptions { PropertyNameCaseInsensitive = true }
+            );
         }
 
         private static bool IsRedirect(HttpResponseMessage r) =>
